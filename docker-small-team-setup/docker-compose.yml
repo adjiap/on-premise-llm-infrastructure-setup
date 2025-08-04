@@ -1,0 +1,39 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    depends_on:
+      - ollama
+    ports:
+      - "${OPENWEBUI_PORT}:8080"
+    env_file:
+      - .env  # update the .env.example, and expand it
+    volumes:
+      - openwebui_data:/app/backend/data
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+volumes:
+  ollama_data:
+  openwebui_data:
+
+networks:
+  ollama-network:
+    driver: bridge
