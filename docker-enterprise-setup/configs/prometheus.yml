@@ -1,0 +1,19 @@
+# /opt/ollama-multi/config/prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'ollama-hr'
+    static_configs:
+      - targets: ['ollama-hr:11434']
+    scrape_interval: 30s
+
+  - job_name: 'ollama-health'
+    static_configs:
+      - targets: ['ollama-health:11434']
+    scrape_interval: 30s
+
+  - job_name: 'ollama-development'
+    static_configs:
+      - targets: ['ollama-development:11434']
+    scrape_interval: 30s

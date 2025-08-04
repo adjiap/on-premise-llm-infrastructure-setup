@@ -1,0 +1,183 @@
+# /opt/ollama-multi/docker-compose.yml
+
+services:
+  # HR Department
+  ollama-hr:
+    image: ollama/ollama:latest
+    container_name: ollama-hr
+    restart: unless-stopped
+    volumes:
+      - /opt/ollama-multi/data/hr/ollama:/root/.ollama
+      - /opt/ollama-multi/logs/hr/ollama:/var/log/ollama
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    networks:
+      - hr-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  webui-hr:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: webui-hr
+    restart: unless-stopped
+    ports:
+      - "${OPENWEBUI_PORT}:8080"  # HR WebUI
+    volumes:
+      - /opt/ollama-multi/data/hr/webui:/app/backend/data
+    env_file:
+      - .env-hrd
+    depends_on:
+      - ollama-hr
+    networks:
+      - hr-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+# Health Department
+  ollama-health:
+    image: ollama/ollama:latest
+    container_name: ollama-health
+    restart: unless-stopped
+    volumes:
+      - /opt/ollama-multi/data/health/ollama:/root/.ollama
+      - /opt/ollama-multi/logs/health/ollama:/var/log/ollama
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  webui-health:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: webui-health
+    restart: unless-stopped
+    ports:
+      - "${OPENWEBUI_PORT}:8080"  # Health WebUI
+    volumes:
+      - /opt/ollama-multi/data/health/webui:/app/backend/data
+    env_file:
+      - .env-health
+    depends_on:
+      - ollama-health
+    networks:
+      - health-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+# Software Development Department
+  ollama-development:
+    image: ollama/ollama:latest
+    container_name: ollama-development
+    restart: unless-stopped
+    volumes:
+      - /opt/ollama-multi/data/development/ollama:/root/.ollama
+      - /opt/ollama-multi/logs/development/ollama:/var/log/ollama
+    deploy:
+      resources:
+        limits:
+          memory: 12G  # Development gets more memory
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0', '1']
+              capabilities: [gpu]
+    networks:
+      - development-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  webui-development:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: webui-development
+    restart: unless-stopped
+    ports:
+      - "${OPENWEBUI_PORT}:8080"  # Development WebUI
+    volumes:
+      - /opt/ollama-multi/data/development/webui:/app/backend/data
+    env_file:
+      - .env-swdev
+    depends_on:
+      - ollama-development
+    networks:
+      - development-network
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+
+  # Shared monitoring
+  monitoring:
+    image: prom/prometheus:latest
+    container_name: ollama-monitoring
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - /opt/ollama-multi/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - /opt/ollama-multi/data/monitoring:/prometheus
+    networks:
+      - monitoring-network
+      - hr-network
+      - health-network
+      - development-network
+
+  # Load balancer/router
+  nginx:
+    image: nginx:alpine
+    container_name: ollama-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/ollama-multi/config/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - webui-hr
+      - webui-health
+      - webui-development
+    networks:
+      - hr-network
+      - health-network
+      - development-network
+
+networks:
+  hr-network:
+    driver: bridge
+    name: hr-network
+  health-network:
+    driver: bridge
+    name: health-network
+  development-network:
+    driver: bridge
+    name: development-network
+  monitoring-network:
+    driver: bridge
+    name: monitoring-network
