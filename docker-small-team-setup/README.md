@@ -80,6 +80,7 @@ If you fulfill the requirements above, then run the small team setup. Otherwise,
 ### Quick Start Guide
 
 Run the following commands in the shell of the LLM machine.
+
 ```sh
 # Clone the repository and navigate to small team setup
 git clone <repository-url>
@@ -157,6 +158,7 @@ docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
 > However, it **IS** a minimum requirement for multiple users.
 
 **Minimum Requirements for Small Team Setup:**
+
 - **CPU**: 4+ cores (Intel i7-8700 or equivalent)
 - **Memory**: 16GB+ RAM (8GB minimum)
 - **GPU**: 1x NVIDIA RTX 2080 Ti or equivalent (11GB VRAM minimum)
@@ -235,6 +237,7 @@ docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
 > The `docker run` bash script is considered to be deprecated, but it's kept in `bash_script_setup` as example setup
 
 **Using Docker Compose (Recommended):**
+
 ```sh
 # Start Ollama service
 docker compose up -d ollama
@@ -265,6 +268,7 @@ done
 ```
 
 **Using Manual Docker Commands:**
+
 ```sh
 # Create a Docker network for Ollama and OpenWebUI to communicate
 docker network create ollama-network
@@ -299,6 +303,7 @@ curl -s http://localhost:3000 >/dev/null && echo "✅ OpenWebUI is accessible" |
 ```
 
 **Using Manual Docker Commands:**
+
 ```sh
 # Create OpenWebUI container
 docker run -d \
@@ -373,6 +378,7 @@ As a general rule, the SysAdmin's role are the following:
 * Setting up knowledge bases and shared resources
 
 **Management Commands:**
+
 ```sh
 # Check system status
 docker ps
@@ -402,27 +408,31 @@ docker exec ollama-container ollama rm unused-model:tag
 ```
 
 **Access URLs:**
-- **Main Interface**: `http://your-server:3000`
-- **Admin Panel**: `http://your-server:3000/admin` (admin account required)
+
+* **Main Interface**: `http://your-server:3000`
+* **Admin Panel**: `http://your-server:3000/admin` (admin account required)
 
 ## Security & Access Control
 
 ### Shared Environment Considerations
-- **Shared Models**: All users access the same model instances
-- **User Isolation**: Basic user separation through OpenWebUI authentication
-- **Data Privacy**: Chat histories are isolated per user account
-- **Resource Sharing**: GPU and compute resources are shared among all users
+
+* **Shared Models**: All users access the same model instances
+* **User Isolation**: Basic user separation through OpenWebUI authentication
+* **Data Privacy**: Chat histories are isolated per user account
+* **Resource Sharing**: GPU and compute resources are shared among all users
 
 ### Security Features
-- **Authentication Required**: `WEBUI_AUTH=True`
-- **Admin Approval**: New users require admin approval
-- **API Key Management**: Controlled API access
-- **File Upload Restrictions**: Limited to specific file types
-- **No Code Execution**: Disabled by default for security
+
+* **Authentication Required**: `WEBUI_AUTH=True`
+* **Admin Approval**: New users require admin approval
+* **API Key Management**: Controlled API access
+* **File Upload Restrictions**: Limited to specific file types
+* **No Code Execution**: Disabled by default for security
 
 ## Troubleshooting Common Issues
 
 ### Container Issues
+
 ```sh
 # Check if containers are running
 if ! docker ps | grep -q ollama-container; then
@@ -437,6 +447,7 @@ fi
 ```
 
 ### Model Issues
+
 ```sh
 # Check if at least one model is available
 if ! docker exec ollama-container ollama list | grep -q ":"; then
@@ -447,6 +458,7 @@ fi
 ```
 
 ### Connectivity Issues
+
 ```sh
 # Test basic API connectivity
 if ! curl -s http://localhost:3000 >/dev/null; then
@@ -463,6 +475,7 @@ curl -X POST http://localhost:11434/api/generate \
 ```
 
 ### Resource Issues
+
 ```sh
 # Check GPU memory usage
 nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits
@@ -472,6 +485,14 @@ df -h /var/lib/docker
 
 # Check container resource usage
 docker stats --no-stream
+```
+
+### Migrating Docker Volumes
+
+```sh
+# This was useful to move the original volume created by Dockerfile into the "name-of-folder_name-of-service" volume
+docker run --rm -v openwebui_data:/source -v docker-small-team-setup_openwebui_data:/destination   alpine sh -c "cp -av /source/. /destination/"
+docker run --rm -v ollama_data:/source -v docker-small-team-setup_ollama_data:/destination   alpine sh -c "cp -av /source/. /destination/"
 ```
 
 ## Linked Projects
