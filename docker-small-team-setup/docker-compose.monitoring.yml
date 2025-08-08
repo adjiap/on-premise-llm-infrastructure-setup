@@ -1,0 +1,351 @@
+services:
+  # Configuration initializer - creates all config files in volumes
+  config-init:
+    image: alpine:latest
+    container_name: monitoring-config-init
+    volumes:
+      - prometheus_config:/prometheus
+      - grafana_config:/grafana
+      - loki_config:/loki
+      - tempo_config:/tempo
+      - otel_config:/otel
+    command: |
+      sh -c "
+        echo '=== Initializing monitoring configurations ==='
+        
+        # Create Prometheus config
+        mkdir -p /prometheus
+        cat > /prometheus/prometheus.yml << 'EOF'
+        global:
+          scrape_interval: 15s
+          evaluation_interval: 15s
+
+        scrape_configs:
+          - job_name: 'prometheus'
+            static_configs:
+              - targets: ['localhost:9090']
+
+          - job_name: 'node-exporter'
+            static_configs:
+              - targets: ['node-exporter:9100']
+
+          - job_name: 'cadvisor'
+            static_configs:
+              - targets: ['cadvisor:8080']
+
+          - job_name: 'otel-collector'
+            static_configs:
+              - targets: ['otel-collector:8889']
+
+          - job_name: 'ollama'
+            static_configs:
+              - targets: ['ollama-container:11434']
+            metrics_path: '/metrics'
+            scrape_interval: 30s
+
+          - job_name: 'openwebui'
+            static_configs:
+              - targets: ['openwebui:8080']
+            metrics_path: '/metrics'
+            scrape_interval: 30s
+        EOF
+
+        # Create Grafana datasource config
+        mkdir -p /grafana/datasources
+        cat > /grafana/datasources/datasources.yml << 'EOF'
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            type: prometheus
+            access: proxy
+            url: http://prometheus:9090
+            isDefault: true
+            
+          - name: Loki
+            type: loki
+            access: proxy
+            url: http://loki:3100
+            
+          - name: Tempo
+            type: tempo
+            access: proxy
+            url: http://tempo:3200
+        EOF
+
+        # Create Loki config
+        mkdir -p /loki
+        cat > /loki/local-config.yaml << 'EOF'
+        auth_enabled: false
+
+        server:
+          http_listen_port: 3100
+
+        ingester:
+          lifecycler:
+            address: 127.0.0.1
+            ring:
+              kvstore:
+                store: inmemory
+              replication_factor: 1
+            final_sleep: 0s
+          chunk_idle_period: 5m
+          chunk_retain_period: 30s
+
+        schema_config:
+          configs:
+            - from: 2020-10-24
+              store: boltdb
+              object_store: filesystem
+              schema: v11
+              index:
+                prefix: index_
+                period: 168h
+
+        storage_config:
+          boltdb:
+            directory: /tmp/loki/index
+          filesystem:
+            directory: /tmp/loki/chunks
+
+        limits_config:
+          enforce_metric_name: false
+          reject_old_samples: true
+          reject_old_samples_max_age: 168h
+        EOF
+
+        # Create Tempo config
+        mkdir -p /tempo
+        cat > /tempo/tempo.yml << 'EOF'
+        server:
+          http_listen_port: 3200
+
+        distributor:
+          receivers:
+            jaeger:
+              protocols:
+                thrift_http:
+                  endpoint: 0.0.0.0:14268
+                grpc:
+                  endpoint: 0.0.0.0:14250
+                thrift_binary:
+                  endpoint: 0.0.0.0:6832
+                thrift_compact:
+                  endpoint: 0.0.0.0:6831
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+
+        ingester:
+          trace_idle_period: 10s
+          max_block_bytes: 1_000_000
+          max_block_duration: 5m
+
+        compactor:
+          compaction:
+            compaction_window: 1h
+            max_block_bytes: 100_000_000
+            block_retention: 1h
+            compacted_block_retention: 10m
+
+        storage:
+          trace:
+            backend: local
+            local:
+              path: /tmp/tempo/traces
+        EOF
+
+        # Create OpenTelemetry Collector config
+        mkdir -p /otel
+        cat > /otel/otel-collector-config.yaml << 'EOF'
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+
+        processors:
+          batch:
+
+        exporters:
+          prometheus:
+            endpoint: '0.0.0.0:8889'
+            
+          loki:
+            endpoint: http://loki:3100/loki/api/v1/push
+            
+          otlp/tempo:
+            endpoint: http://tempo:4317
+            tls:
+              insecure: true
+
+        service:
+          pipelines:
+            metrics:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [prometheus]
+              
+            logs:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [loki]
+              
+            traces:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [otlp/tempo]
+        EOF
+
+        echo '=== Configuration initialization complete ==='
+      "
+    restart: "no"
+
+  # OpenTelemetry Collector - receives telemetry data from OpenWebUI
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - otel_config:/etc
+    ports:
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+      - "${OTEL_HTTP_PORT:-4318}:4318"
+      - "${OTEL_METRICS_PORT:-8889}:8889"
+    depends_on:
+      - config-init
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - prometheus_config:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - config-init
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_config:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    depends_on:
+      - config-init
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - loki_config:/etc/loki:ro
+      - loki_data:/tmp/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    depends_on:
+      - config-init
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"
+      - "${TEMPO_JAEGER_PORT:-14268}:14268"  # Jaeger ingest
+    volumes:
+      - tempo_config:/etc/tempo:ro
+      - tempo_data:/tmp/tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    depends_on:
+      - config-init
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "${CADVISOR_PORT:-8081}:8080"  # Changed default to avoid conflict
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+volumes:
+  prometheus_data:
+  prometheus_config:
+  grafana_data:
+  grafana_config:
+  loki_data:
+  loki_config:
+  tempo_data:
+  tempo_config:
+  otel_config:
+
+networks:
+  ollama-network:
+    external: true
