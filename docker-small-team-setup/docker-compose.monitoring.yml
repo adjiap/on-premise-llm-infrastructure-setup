@@ -208,7 +208,7 @@ services:
   # OpenTelemetry Collector - receives telemetry data from OpenWebUI
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    container_name: otel-collector
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - otel_config:/etc
@@ -227,7 +227,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
@@ -248,7 +248,7 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    container_name: grafana
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-grafana
     ports:
       - "${GRAFANA_PORT:-3001}:3000"
     volumes:
@@ -285,7 +285,7 @@ services:
 
   tempo:
     image: grafana/tempo:latest
-    container_name: tempo
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-tempo
     ports:
       - "${TEMPO_PORT:-3200}:3200"
       - "${TEMPO_JAEGER_PORT:-14268}:14268"  # Jaeger ingest
@@ -301,7 +301,7 @@ services:
 
   node-exporter:
     image: prom/node-exporter:latest
-    container_name: node-exporter
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-node-exporter
     ports:
       - "${NODE_EXPORTER_PORT:-9100}:9100"
     volumes:
@@ -319,7 +319,7 @@ services:
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
+    container_name: ${COMPOSE_PROJECT_NAME:-openwebui}-cadvisor
     ports:
       - "${CADVISOR_PORT:-8081}:8080"  # Changed default to avoid conflict
     volumes:
