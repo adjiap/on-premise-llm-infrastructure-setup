@@ -46,6 +46,13 @@
       <li><a href="#user-access">User Access</a></li>
       <li><a href="#developer-access">Developer Access</a></li>
       <li><a href="#sysadmin-access">SysAdmin Access</a></li>
+      <li><a href="#monitoring-setup">Monitoring Setup</a>
+        <ul>
+          <li><a href="#lgtm-stack-overview">LGTM Stack Overview</a></li>
+          <li><a href="#monitoring-installation">Monitoring Installation</a></li>
+          <li><a href="#monitoring-access">Monitoring Access</a></li>
+        </ul>
+      </li>
     </ul>
   </li>
 </ol>
@@ -92,6 +99,8 @@ nano .env # Edit configuration as needed
 
 # Run Installation with Docker Compose (Recommended)
 docker compose up -d
+# FYI: no monitoring is set up here, if you want it, you need to run:
+# docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 
 # OR for learning purposes - manual setup with bash scripts
 cd bash_script_setup
@@ -111,8 +120,11 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 docker logs ollama-container
 docker logs openwebui
 
-# Restart services
+# Restart only LLM services (from main compose file)
 docker compose restart
+
+# Restart only monitoring services  
+docker compose -f docker-compose.monitoring.yml restart
 
 # Pull additional models
 docker exec ollama-container ollama pull llama3.1:8b
@@ -124,6 +136,17 @@ nvidia-smi
 docker compose down
 # OR if using bash scripts:
 ./cleanup.sh
+
+# Monitoring operations
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml ps
+docker compose -f docker-compose.monitoring.yml logs grafana
+
+# Access monitoring dashboards
+curl http://localhost:3001  # Grafana
+curl http://localhost:9090  # Prometheus
+
+# Clean up monitoring stack
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down
 ```
 
 #### Troubleshooting
@@ -149,6 +172,18 @@ curl http://localhost:3000
 
 # Verify Docker + NVIDIA integration:
 docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
+
+# Check monitoring stack health
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml ps
+
+# Verify OpenTelemetry connectivity
+curl http://localhost:4318/v1/metrics
+
+# Check Grafana data sources
+curl --user "admin:admin" http://localhost:3001/api/datasources
+
+# Monitor resource usage across all containers
+docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 ```
 
 ### Requirements (based on my own experience)
@@ -159,11 +194,11 @@ docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
 
 **Minimum Requirements for Small Team Setup:**
 
-- **CPU**: 4+ cores (Intel i7-8700 or equivalent)
-- **Memory**: 16GB+ RAM (8GB minimum)
-- **GPU**: 1x NVIDIA RTX 2080 Ti or equivalent (11GB VRAM minimum)
-- **Storage**: 500GB+ SSD for models and data
-- **Network**: Stable internet for initial model downloads
+* **CPU**: 4+ cores (Intel i7-8700 or equivalent)
+* **Memory**: 16GB+ RAM (8GB minimum)
+* **GPU**: 1x NVIDIA RTX 2080 Ti or equivalent (11GB VRAM minimum)
+* **Storage**: 500GB+ SSD for models and data
+* **Network**: Stable internet for initial model downloads
 
 ```sh
 {
@@ -407,10 +442,66 @@ docker exec ollama-container ollama pull llama3.1:13b
 docker exec ollama-container ollama rm unused-model:tag
 ```
 
+**Monitoring Management:**
+
+```sh
+# Monitor system performance
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml logs --tail 50
+
+# Check monitoring stack resource usage
+docker stats grafana prometheus loki tempo otel-collector
+
+# Backup monitoring data
+docker run --rm -v grafana_data:/data -v $(pwd):/backup alpine tar czf /backup/grafana_backup.tar.gz /data
+docker run --rm -v prometheus_data:/data -v $(pwd):/backup alpine tar czf /backup/prometheus_backup.tar.gz /data
+
+# Update monitoring stack
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml pull
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+```
+
 **Access URLs:**
 
 * **Main Interface**: `http://your-server:3000`
 * **Admin Panel**: `http://your-server:3000/admin` (admin account required)
+* **Grafana Admin**: `http://your-server:3001/admin`
+* **Prometheus Targets**: `http://your-server:9090/targets`
+* **System Metrics**: `http://your-server:9100/metrics`
+
+## Monitoring Setup
+
+### LGTM Stack Overview
+
+The monitoring setup uses the LGTM (Loki, Grafana, Tempo, Mimir/Prometheus) observability stack to provide comprehensive monitoring of your LLM infrastructure:
+
+**Components:**
+
+* **Prometheus** - Metrics collection and storage
+* **Grafana** - Visualization dashboards and alerting
+* **Loki** - Log aggregation and querying
+* **Tempo** - Distributed tracing
+* **OpenTelemetry Collector** - Telemetry data collection and routing
+* **Node Exporter** - Host system metrics
+* **cAdvisor** - Container performance metrics
+
+**What You Can Monitor:**
+
+* LLM response times and throughput
+* GPU utilization and memory usage
+* Container resource consumption
+* System performance metrics
+* Application logs and traces
+* User interaction patterns
+
+### Monitoring Installation
+
+> [!NOTE]
+> The `.env.example` already gives out the recommended default environment variables
+
+```sh
+# If you want to add it to an existing composed service.
+docker compose -f docker-compose.monitoring.yml up -d
+```
 
 ## Security & Access Control
 
