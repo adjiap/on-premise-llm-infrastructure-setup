@@ -2,4 +2,4 @@
 .env*
 
 # But keep example files anywhere  
-!*.env.example
+!*.env*.example
