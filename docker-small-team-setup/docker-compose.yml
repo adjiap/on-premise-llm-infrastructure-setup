@@ -21,7 +21,7 @@ services:
     depends_on:
       - ollama
     ports:
-      - "${OPENWEBUI_PORT}:8080"
+      - "${OPENWEBUI_PORT:-3000}:8080"
     env_file:
       - .env  # update the .env.example, and expand it
     volumes:
