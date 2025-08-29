@@ -320,8 +320,8 @@ docker run -d \
 # Download models (same as above)
 ```
 
-> [!WARNING] Managing AI Models for SysAdmins
-> In the future, do not manage AI models by accessing the `ollama-container` directly. Use the Admin Panel in OpenWebUI instead for better model lifecycle management.
+> [!WARNING]
+> For SysAdmins, In the future, do not manage AI models by accessing the `ollama-container` directly. Use the Admin Panel in OpenWebUI instead for better model lifecycle management.
 
 ##### Setting up OpenWebUI container
 
