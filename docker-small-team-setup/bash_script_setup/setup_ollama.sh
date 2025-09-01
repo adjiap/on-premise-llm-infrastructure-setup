@@ -1,6 +1,7 @@
+docker network create ollama-network 2>/dev/null || true
+
 # Set up ollama-container
 docker run -d \
-  --gpus all \
   --name ollama-container \
   --network ollama-network \
   -v ollama_data:/root/.ollama \
