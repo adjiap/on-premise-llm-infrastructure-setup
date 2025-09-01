@@ -93,9 +93,12 @@ Run the following commands in the shell of the LLM machine.
 git clone <repository-url>
 cd docker-small-team-setup
 
-# Copy and configure environment file
-cp .env.example .env
-nano .env # Edit configuration as needed
+# Create environment files
+docker compose up env-setup
+
+## Edit configuration as needed
+# nano .env 
+# nano .env.gpu-auto 
 
 # Run Installation with Docker Compose (Recommended)
 docker compose up -d
@@ -106,6 +109,8 @@ docker compose up -d
 cd bash_script_setup
 chmod +x setup_script.sh
 ./setup_script.sh
+# And clean when you're done
+./cleanup.sh
 ```
 
 #### Common operations
