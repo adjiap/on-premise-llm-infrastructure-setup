@@ -101,9 +101,9 @@ docker compose up env-setup
 # nano .env.gpu-auto 
 
 # Run Installation with Docker Compose (Recommended)
-docker compose up -d
+docker compose up --profile gpu -d # Or `--profile cpu`, if you don't have NVIDIA GPU
 # FYI: no monitoring is set up here, if you want it, you need to run:
-# docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile gpu up -d
 
 # OR for learning purposes - manual setup with bash scripts
 cd bash_script_setup
