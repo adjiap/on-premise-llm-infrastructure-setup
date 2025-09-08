@@ -1,3 +1,18 @@
+
+x-ollama-base: &ollama-base
+  image: ollama/ollama:latest
+  container_name: ollama-container
+  env_file:
+    - .env.gpu-auto
+  depends_on:
+    env-setup:
+      condition: service_completed_successfully
+  volumes:
+    - ollama_data:/root/.ollama
+  restart: unless-stopped
+  networks:
+    - ollama-network
+
 services:
   env-setup:
     image: mcr.microsoft.com/powershell:lts-alpine-3.14
@@ -76,19 +91,22 @@ services:
     networks:
       - ollama-network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama-container
-    depends_on:
-      env-setup:
-        condition: service_completed_successfully
-    env_file:
-      - .env.gpu-auto
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    networks:
-      - ollama-network
+  ollama-cpu:
+    <<: *ollama-base
+    profiles:
+      - cpu
+
+  ollama-gpu:
+    <<: *ollama-base
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
@@ -96,8 +114,6 @@ services:
     depends_on:
       env-setup:
         condition: service_completed_successfully
-      ollama:
-        condition: service_started
     ports:
       - "${OPENWEBUI_PORT:-3000}:8080"
     env_file:
