@@ -1,0 +1,72 @@
+services:
+  env-setup:
+    image: mcr.microsoft.com/powershell:lts-alpine-3.14
+    restart: "no"
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: |
+      pwsh -c "
+        Write-Host '🔧 Setting up GPU configuration...' -ForegroundColor Cyan;
+        
+        if (Test-Path '.env') {
+          Write-Host '.env already exists, skipping copy' -ForegroundColor Green;
+        } else {
+          Copy-Item '.env.example' '.env';
+        }
+        
+         # Cross-platform GPU detection
+        if (Test-Path '.env.gpu-auto') {
+          Write-Host '.env.gpu-auto already exists, skipping copy' -ForegroundColor Green;
+        } else {
+          Copy-Item '.env.gpu.example' '.env.gpu-auto';
+        }
+        Write-Host '✅ GPU configuration complete' -ForegroundColor Green;
+      "
+    networks:
+      - ollama-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-container
+    env_file:
+      - .env.gpu-auto
+    depends_on:
+      env-setup:
+        condition: service_completed_successfully
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - ollama-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    depends_on:
+      ollama:
+        condition: service_started
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    env_file:
+      - .env
+    volumes:
+      - openwebui_data:/app/backend/data
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+volumes:
+  ollama_data:
+  openwebui_data:
+
+networks:
+  ollama-network:
+    driver: bridge
