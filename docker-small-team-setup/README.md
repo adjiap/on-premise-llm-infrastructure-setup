@@ -101,9 +101,9 @@ docker compose up env-setup
 # nano .env.gpu-auto 
 
 # Run Installation with Docker Compose (Recommended)
-docker compose up --profile gpu -d # Or `--profile cpu`, if you don't have NVIDIA GPU
+docker compose -f docker-compose.gpu.yml up -d # Or `docker-compose.cpu.yml`, if you don't have NVIDIA GPU
 # FYI: no monitoring is set up here, if you want it, you need to run:
-# docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile gpu up -d
+# docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml up -d
 
 # OR for learning purposes - manual setup with bash scripts
 cd bash_script_setup
@@ -143,7 +143,7 @@ docker compose down
 ./cleanup.sh
 
 # Monitoring operations
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml ps
+docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml ps
 docker compose -f docker-compose.monitoring.yml logs grafana
 
 # Access monitoring dashboards
@@ -151,7 +151,7 @@ curl http://localhost:3001  # Grafana
 curl http://localhost:9090  # Prometheus
 
 # Clean up monitoring stack
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down
+docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml down
 ```
 
 #### Troubleshooting
@@ -280,7 +280,7 @@ docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
 
 ```sh
 # Start Ollama service
-docker compose up -d ollama
+docker compose -f docker-compose.gpu.yml up -d ollama # Or *.cpu.yml
 
 # Wait for service to be ready
 sleep 10
@@ -336,7 +336,7 @@ docker run -d \
 **Using Docker Compose (Recommended):**
 ```sh
 # Start OpenWebUI service
-docker compose up -d openwebui
+docker compose -f docker-compose.gpu.yml up -d openwebui # Or *.cpu.yml
 
 # Check if it's accessible
 curl -s http://localhost:3000 >/dev/null && echo "✅ OpenWebUI is accessible" || echo "❌ OpenWebUI not accessible"
@@ -451,7 +451,7 @@ docker exec ollama-container ollama rm unused-model:tag
 
 ```sh
 # Monitor system performance
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml logs --tail 50
+docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml logs --tail 50
 
 # Check monitoring stack resource usage
 docker stats grafana prometheus loki tempo otel-collector
@@ -461,8 +461,8 @@ docker run --rm -v grafana_data:/data -v $(pwd):/backup alpine tar czf /backup/g
 docker run --rm -v prometheus_data:/data -v $(pwd):/backup alpine tar czf /backup/prometheus_backup.tar.gz /data
 
 # Update monitoring stack
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml pull
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml pull
+docker compose -f docker-compose.gpu.yml -f docker-compose.monitoring.yml up -d
 ```
 
 **Access URLs:**
