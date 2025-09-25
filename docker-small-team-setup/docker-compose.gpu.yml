@@ -48,7 +48,7 @@ services:
               capabilities: [gpu]
 
   openwebui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:cuda
     container_name: openwebui
     depends_on:
       ollama:
