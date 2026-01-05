@@ -31,11 +31,22 @@ services:
     container_name: ollama-container
     env_file:
       - .env.gpu-auto
+    environment:
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount}  # Enters "bind_mount" if has variable. Otherwise, empty.
     depends_on:
       env-setup:
         condition: service_completed_successfully
     volumes:
-      - ollama_data:/root/.ollama
+      - "${LOCAL_DOWNLOADED_MODELS_MOUNTED:-ollama_data}:/root/.ollama"
+    entrypoint: >
+      sh -c "
+      if [ -z \"$$MOUNT_TYPE\" ]; then
+        echo '⚠️  WARNING: Using named volume (ollama_data). Set LOCAL_DOWNLOADED_MODELS_MOUNTED in .env for bind mount.'
+      else
+        echo '✅ Using bind mount from host'
+      fi &&
+      exec /bin/ollama serve
+      "
     restart: unless-stopped
     networks:
       - ollama-network
