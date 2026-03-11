@@ -1,0 +1,5 @@
+mistral:7b
+llama3.2:3b
+llama3.1:8b
+codellama:7b
+mistral:7b-instruct
