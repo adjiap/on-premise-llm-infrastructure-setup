@@ -1,0 +1,110 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-container
+    profiles:
+      - cpu
+    environment:
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount}  # Enters "bind_mount" if has variable. Otherwise, empty.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama-container:11434}
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_GPU_LAYERS=0
+      - GPU_MODE=false
+    volumes:
+      - "${LOCAL_DOWNLOADED_MODELS_MOUNTED:-ollama_data}:/root/.ollama"
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "
+      if [ -z \"$$MOUNT_TYPE\" ]; then
+        echo '⚠️  WARNING: Using named volume (ollama_data). Set LOCAL_DOWNLOADED_MODELS_MOUNTED in .env for bind mount.'
+      else
+        echo '✅ Using bind mount from host'
+      fi &&
+      exec /bin/ollama serve
+      "
+    networks:
+      - ollama-network
+
+  ollama-gpu:
+    image: ollama/ollama:latest
+    container_name: ollama-container
+    profiles:
+      - gpu
+    environment:
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount}  # Enters "bind_mount" if has variable. Otherwise, empty.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama-container:11434}
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_GPU_LAYERS=999
+      - GPU_MODE=true
+    volumes:
+      - "${LOCAL_DOWNLOADED_MODELS_MOUNTED:-ollama_data}:/root/.ollama"
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "
+      if [ -z \"$$MOUNT_TYPE\" ]; then
+        echo '⚠️  WARNING: Using named volume (ollama_data). Set LOCAL_DOWNLOADED_MODELS_MOUNTED in .env for bind mount.'
+      else
+        echo '✅ Using bind mount from host'
+      fi &&
+      exec /bin/ollama serve
+      "
+    networks:
+      - ollama-network
+    # Podman GPU passthrough (Docker ignores device entries, uses deploy block instead)
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-modeset:/dev/nvidia-modeset
+    # Docker nvidia-runtime (ignored by Podman)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    profiles:
+      - cpu
+    depends_on:
+      - ollama
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    env_file:
+      - .env
+    volumes:
+      - openwebui_data:/app/backend/data
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+  openwebui-gpu:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: openwebui
+    profiles:
+      - gpu
+    depends_on:
+      - ollama-gpu
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    env_file:
+      - .env
+    volumes:
+      - openwebui_data:/app/backend/data
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+volumes:
+  ollama_data:
+  openwebui_data:
+
+networks:
+  ollama-network:
+    driver: bridge
