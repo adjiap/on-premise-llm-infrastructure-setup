@@ -52,12 +52,6 @@ services:
       "
     networks:
       - ollama-network
-    # Podman GPU passthrough (Docker ignores device entries, uses deploy block instead)
-    devices:
-      - /dev/nvidia0:/dev/nvidia0
-      - /dev/nvidiactl:/dev/nvidiactl
-      - /dev/nvidia-uvm:/dev/nvidia-uvm
-      - /dev/nvidia-modeset:/dev/nvidia-modeset
     # Docker nvidia-runtime (ignored by Podman)
     deploy:
       resources:

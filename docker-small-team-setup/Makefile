@@ -29,8 +29,11 @@ check: ## Verify all prerequisites are met
 compose: check ## Auto-detect GPU and start containers
 	@PROFILE=$$($(DETECT_GPU)) && \
 	COMPOSE=$$($(DETECT_COMPOSE)) && \
+	RUNTIME=$$($(DETECT_RUNTIME)) && \
+	OVERRIDE="" && \
+	[ "$$RUNTIME" = "podman" ] && OVERRIDE="-f compose.podman-gpu.yml" ; \
 	echo "Starting with profile: $$PROFILE" && \
-	$$COMPOSE -f compose.yml --profile $$PROFILE up -d
+	$$COMPOSE -f compose.yml $$OVERRIDE --profile $$PROFILE up -d
 
 compose-cpu: check ## Force CPU mode regardless of hardware
 	@COMPOSE=$$($(DETECT_COMPOSE)) && \
