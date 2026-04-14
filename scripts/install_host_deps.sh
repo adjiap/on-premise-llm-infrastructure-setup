@@ -70,7 +70,7 @@ detect_distro() {
 ask_runtime() {
     echo ""
     echo "Which container runtime would you like to install?"
-    echo "  1) Podman (recommended — rootful, daemonless)"
+    echo "  1) Podman"
     echo "  2) Docker"
     echo ""
     read -rp "Enter choice [1/2] (default: 1): " choice
@@ -215,8 +215,8 @@ install_nvidia_container_toolkit() {
         systemctl restart docker
         log_ok "NVIDIA container toolkit configured for Docker"
     elif [ "$RUNTIME" = "podman" ]; then
-        nvidia-ctk runtime configure --runtime=podman
-        log_ok "NVIDIA container toolkit configured for Podman"
+        nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+        log_ok "NVIDIA container toolkit configured for Podman (CDI spec generated)"
     fi
 }
 
@@ -308,8 +308,8 @@ main() {
     if check_nvidia_smi; then
         if [ "$RUNTIME" = "docker" ] && check_nvidia_toolkit; then
             log_ok "NVIDIA container toolkit already configured for Docker"
-        elif [ "$RUNTIME" = "podman" ] && check_nvidia_devices; then
-            log_ok "NVIDIA device nodes present"
+        elif [ "$RUNTIME" = "podman" ]  && check_nvidia_devices &&  [ -f /etc/cdi/nvidia.yaml ]; then
+            log_ok "NVIDIA CDI spec already present"
         else
             install_nvidia_container_toolkit
         fi
