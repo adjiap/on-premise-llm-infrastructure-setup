@@ -5,7 +5,9 @@
 
 set -euo pipefail
 
-if command -v podman &> /dev/null && podman compose version &> /dev/null 2>&1; then
+if command -v podman &> /dev/null && command -v podman-compose &> /dev/null 2>&1; then
+  echo "podman-compose"
+elif command -v podman &> /dev/null && podman compose version &> /dev/null 2>&1; then
   echo "podman compose"
 elif command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then
   echo "docker compose"

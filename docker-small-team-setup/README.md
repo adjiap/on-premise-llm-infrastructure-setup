@@ -298,6 +298,17 @@ podman compose version
 
 ##### Setting Up NVIDIA Drivers
 
+> [!TIP]
+> For automated installation, run the following from the repository root:
+>
+> ```sh
+> sudo bash scripts/install-host-deps.sh
+> ```
+>
+> The script detects your distro, installs the appropriate NVIDIA drivers and
+> container toolkit, and configures the runtime automatically. Manual steps
+> are documented below for reference.
+
 ```sh
 # RHEL-based
 sudo dnf install -y nvidia-driver nvidia-driver-cuda nvidia-driver-cuda-libs \
@@ -305,7 +316,7 @@ sudo dnf install -y nvidia-driver nvidia-driver-cuda nvidia-driver-cuda-libs \
 
 # Configure container runtime
 sudo nvidia-ctk runtime configure --runtime=docker   # for Docker
-sudo nvidia-ctk runtime configure --runtime=podman   # for Podman
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml  # for Podman
 
 # Debian-based
 sudo apt install -y ubuntu-drivers-common
@@ -325,6 +336,15 @@ nvidia-smi
 > This is handled automatically by `make compose`. The manual steps below are for reference only.
 
 ##### Starting the Stack
+
+> [!NOTE]
+> Runtime detection is handled automatically by `make compose` via
+> `scripts/detect_container_runtime.sh`. To inspect what was resolved:
+>
+> ```sh
+> bash scripts/detect_container_runtime.sh
+> ```
+
 ```sh
 # Navigate to the small team setup directory
 cd docker-small-team-setup
@@ -341,6 +361,7 @@ make compose-gpu
 ```
 
 ##### Pulling Models
+
 ```sh
 # Pull the default recommended models (defined in default-models.txt)
 make model-pull-defaults
@@ -356,6 +377,7 @@ make model-list
 > Models are stored in the location defined by `LOCAL_DOWNLOADED_MODELS_MOUNTED` in `.env`.
 > If not set, models fall back to a named Docker/Podman volume and will be lost on `make clean`.
 > It is strongly recommended to set this to a persistent host path, e.g.:
+>
 > ```sh
 > LOCAL_DOWNLOADED_MODELS_MOUNTED=/opt/ollama-models
 > ```
@@ -372,6 +394,7 @@ make model-list
 > ```
 
 ##### Stopping the Stack
+
 ```sh
 # Stop containers (preserves volumes and models)
 make compose-down
@@ -387,6 +410,7 @@ make clean
 > personal workstation, you can skip this section.
 
 ### Group Structure
+
 ```
 svc-llm-admins    = Sysadmins who manage the LLM stack (start/stop/update)
 docker or podman  = All users who need to run container commands directly
@@ -396,6 +420,7 @@ Typical users do not need any Linux group membership — they access the service
 `http://your-server:${OPENWEBUI_PORT:-3000}` and are managed through OpenWebUI's own user management.
 
 ### Initial Setup
+
 ```sh
 # Create the sysadmin group
 sudo groupadd svc-llm-admins
@@ -418,12 +443,14 @@ sudo usermod -aG docker user2
 ### Restricting sudo Access
 
 Rather than granting full root access, restrict sysadmins to only the commands they need:
+
 ```sh
 sudo visudo -f /etc/sudoers.d/svc-llm-admins
 ```
 
 Add the following:
-```
+
+```sh
 # Podman
 %svc-llm-admins ALL=(ALL) NOPASSWD: /usr/bin/podman, /usr/bin/make
 
@@ -437,6 +464,7 @@ Add the following:
 ### Model Storage Permissions
 
 If using a shared model directory (recommended), ensure it is accessible to the container runtime:
+
 ```sh
 # Create the shared model directory
 sudo mkdir -p /opt/ollama-models
@@ -447,6 +475,7 @@ sudo chmod -R 2775 /opt/ollama-models
 ```
 
 Then set in `.env`:
+
 ```sh
 LOCAL_DOWNLOADED_MODELS_MOUNTED=/opt/ollama-models
 ```
@@ -454,10 +483,11 @@ LOCAL_DOWNLOADED_MODELS_MOUNTED=/opt/ollama-models
 ### ISO 27001 Compliance Notes
 
 This setup maintains a full audit trail because:
-- Each sysadmin uses their **own individual account** — no shared credentials
-- All `sudo` commands are logged in `/var/log/secure` (RHEL) or `/var/log/auth.log` (Debian), recording exactly which user ran what
-- `sudo` scope is restricted to `podman`/`docker` and `make` only — not blanket root
-- Typical users have no shell access to the server — only browser access via OpenWebUI
+
+* Each sysadmin uses their **own individual account** — no shared credentials
+* All `sudo` commands are logged in `/var/log/secure` (RHEL) or `/var/log/auth.log` (Debian), recording exactly which user ran what
+* `sudo` scope is restricted to `podman`/`docker` and `make` only — not blanket root
+* Typical users have no shell access to the server — only browser access via OpenWebUI
 
 > [!NOTE]
 > Alternative: No-Login Service Account Pattern
@@ -484,8 +514,9 @@ This setup maintains a full audit trail because:
 > ```
 >
 > **When to prefer this over pure group-based permissions:**
-> - You want a single unambiguous process owner in `ps` and container inspect output
-> - Your security policy requires a named service identity for compliance auditing
+>
+> * You want a single unambiguous process owner in `ps` and container inspect output
+> * Your security policy requires a named service identity for compliance auditing
 
 <!-- USAGE EXAMPLES -->
 ## Usage
@@ -548,6 +579,7 @@ As a general rule, the SysAdmin's responsibilities are:
 * Setting up knowledge bases and shared resources
 
 #### Stack Management
+
 ```sh
 # Start the stack
 make compose
@@ -566,6 +598,7 @@ make compose-logs
 ```
 
 #### Model Management
+
 ```sh
 # Pull default models (defined in default-models.txt)
 make model-pull-defaults
@@ -581,6 +614,7 @@ make model-rm model=llama3.1:8b
 ```
 
 #### Monitoring Management
+
 ```sh
 # Start monitoring stack
 make monitoring-up
@@ -593,6 +627,7 @@ make monitoring-logs
 ```
 
 #### Backup
+
 ```sh
 # Backup OpenWebUI data (chat history, users, settings)
 docker run --rm \
@@ -617,6 +652,7 @@ docker run --rm \
 > If `LOCAL_DOWNLOADED_MODELS_MOUNTED` is set to a host path, models are already on the host filesystem and don't need a separate backup step — just back up that directory directly.
 
 #### Resource Monitoring
+
 ```sh
 # GPU usage
 nvidia-smi
@@ -698,6 +734,7 @@ make monitoring-up
 > Always run `make check` first — it diagnoses most common issues automatically.
 
 ### Container Issues
+
 ```sh
 # Check if containers are running
 make compose-ps
@@ -713,6 +750,7 @@ podman logs openwebui --tail 50
 ```
 
 ### Model Issues
+
 ```sh
 # List installed models
 make model-list

@@ -54,13 +54,28 @@ check_compose() {
         return 1
     fi
 
+    # For Podman: also check for standalone podman-compose in the invoking user's PATH
+    if [ "$RUNTIME" = "podman" ]; then
+        local user_home
+        user_home=$(getent passwd "${SUDO_USER:-$USER}" | cut -d: -f6)
+        local user_bin="$user_home/.local/bin/podman-compose"
+
+        if command -v podman-compose &>/dev/null; then
+            COMPOSE_CMD="podman-compose"
+            return 0
+        elif [ -x "$user_bin" ]; then
+            COMPOSE_CMD="$user_bin"
+            return 0
+        fi
+    fi
+
     if $RUNTIME compose version &>/dev/null 2>&1; then
         COMPOSE_CMD="$RUNTIME compose"
         return 0
-    else
-        COMPOSE_CMD=""
-        return 1
     fi
+
+    COMPOSE_CMD=""
+    return 1
 }
 
 # ------------------------------------------------------------------------------
