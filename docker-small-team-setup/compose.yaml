@@ -1,11 +1,11 @@
 services:
-  ollama:
+  ollama-cpu:
     image: ollama/ollama:latest
     container_name: ollama-container
     profiles:
       - cpu
     environment:
-      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount}  # Enters "bind_mount" if has variable. Otherwise, empty.
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount} # Enters "bind_mount" if has variable. Otherwise, empty.
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama-container:11434}
       - OLLAMA_NUM_PARALLEL=2
       - OLLAMA_MAX_LOADED_MODELS=1
@@ -26,13 +26,13 @@ services:
     networks:
       - ollama-network
 
-  ollama-gpu:
+  ollama-gpu-docker:
     image: ollama/ollama:latest
     container_name: ollama-container
     profiles:
-      - gpu
+      - gpu-docker
     environment:
-      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount}  # Enters "bind_mount" if has variable. Otherwise, empty.
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount} # Enters "bind_mount" if has variable. Otherwise, empty.
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama-container:11434}
       - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=2
@@ -61,13 +61,42 @@ services:
               count: all
               capabilities: [gpu]
 
+  ollama-gpu-podman:
+    image: ollama/ollama:latest
+    container_name: ollama-container
+    profiles:
+      - gpu-podman
+    environment:
+      - MOUNT_TYPE=${LOCAL_DOWNLOADED_MODELS_MOUNTED:+bind_mount} # Enters "bind_mount" if has variable. Otherwise, empty.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama-container:11434}
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_GPU_LAYERS=999
+      - GPU_MODE=true
+    volumes:
+      - "${LOCAL_DOWNLOADED_MODELS_MOUNTED:-ollama_data}:/root/.ollama"
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "
+      if [ -z \"$$MOUNT_TYPE\" ]; then
+        echo '⚠️  WARNING: Using named volume (ollama_data). Set LOCAL_DOWNLOADED_MODELS_MOUNTED in .env for bind mount.'
+      else
+        echo '✅ Using bind mount from host'
+      fi &&
+      exec /bin/ollama serve
+      "
+    networks:
+      - ollama-network
+    devices:
+      - nvidia.com/gpu=all
+
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
     profiles:
       - cpu
     depends_on:
-      - ollama
+      - ollama-cpu
     ports:
       - "${OPENWEBUI_PORT:-3000}:8080"
     env_file:
@@ -82,9 +111,16 @@ services:
     image: ghcr.io/open-webui/open-webui:cuda
     container_name: openwebui
     profiles:
-      - gpu
-    depends_on:
-      - ollama-gpu
+      - gpu-docker
+      - gpu-podman
+    # INFO: due to bug in podman-compose, this doesn't work, so it's commented out
+    # depends_on:
+    #   ollama-gpu-docker:
+    #     condition: service_started
+    #     required: false
+    #   ollama-gpu-podman:
+    #     condition: service_started
+    #     required: false
     ports:
       - "${OPENWEBUI_PORT:-3000}:8080"
     env_file:
